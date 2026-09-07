@@ -10,10 +10,10 @@ from utils.debug import *
 
 
 class DummyMutation(Mutation):
-    def __init__(self,args) -> None:
+    def __init__(self, args) -> None:
         self.args = args
-        super(MaskGuidedOptimizationSwapMutation, self).__init__(prob=1, prob_var=None)
-    
+        super().__init__(prob=1, prob_var=None)
+
     def _do(self, problem, X, **kwargs):
         return X
 
@@ -29,20 +29,28 @@ class MaskGuidedOptimizationPMMutation(PM):
         )
 
 class MaskGuidedOptimizationSwapMutation(Mutation):
-    def __init__(self,args) -> None:
+    def __init__(self, args) -> None:
         self.args = args
-        super(MaskGuidedOptimizationSwapMutation, self).__init__(prob=1, prob_var=None)
+        super().__init__(prob=1, prob_var=None)
 
     def _do(self, problem, X, **kwargs):
         node_cnt = X.shape[1] // 2
-        idx = np.random.choice(node_cnt, size=(X.shape[0], 2), replace=False)
-        
+        if node_cnt < 2:
+            return X.copy()
+
+        swap_indices = np.array([
+            np.random.choice(node_cnt, size=2, replace=False)
+            for _ in range(X.shape[0])
+        ])
+        rows = np.arange(X.shape[0])
+        first, second = swap_indices[:, 0], swap_indices[:, 1]
+
         X_swapped = X.copy()
-        X_swapped[:, idx[:, 0]], X_swapped[:, idx[:, 1]] = \
-            X[:, idx[:, 1]], X[:, idx[:, 0]]
-        X_swapped[:, idx[:, 0] + node_cnt], X_swapped[:, idx[:, 1] + node_cnt] = \
-            X[:, idx[:, 1] + node_cnt], X[:, idx[:, 0] + node_cnt]
-        
+        X_swapped[rows, first] = X[rows, second]
+        X_swapped[rows, second] = X[rows, first]
+        X_swapped[rows, first + node_cnt] = X[rows, second + node_cnt]
+        X_swapped[rows, second + node_cnt] = X[rows, first + node_cnt]
+
         return X_swapped
 
 class MaskGuidedOptimizationShiftMutation(Mutation):

@@ -1,3 +1,4 @@
+from pymoo.core.population import Population
 from pymoo.core.sampling import Sampling
 from pymoo.operators.sampling.rnd import IntegerRandomSampling, PermutationRandomSampling
 from abc import abstractmethod
@@ -18,22 +19,45 @@ class BasicSampling():
             self.n_repeat = self.args.n_sampling_repeat
         else:
             self.n_repeat = n_repeat
-    
-    def _do(self, problem, n_samples, **kwargs):
 
-        X, y_all, overlap_rate, macro_pos_all = self._sampling_do(problem=problem,
-                                                n_samples=n_samples * self.n_repeat,
-                                                kwargs=kwargs)
+    def do(self, problem, n_samples, **kwargs):
+        X = self._do(problem, n_samples, **kwargs)
+        population = Population.new(
+            X=X,
+            F=self._selected_fitness.reshape(-1, 1),
+            overlap_rate=self._selected_overlap_rate,
+            macro_pos=self._selected_macro_pos,
+        )
+        for individual in population:
+            individual.evaluated.update(("F", "G", "H"))
+        return population
+
+    def _do(self, problem, n_samples, **kwargs):
+        X, y_all, overlap_rate, macro_pos_all = self._sampling_do(
+            problem=problem,
+            n_samples=n_samples * self.n_repeat,
+            **kwargs,
+        )
+        y_all = np.asarray(y_all)
+        overlap_rate = np.asarray(overlap_rate)
+        macro_pos_all = np.asarray(macro_pos_all, dtype=object)
+
         sorted_indices = np.argsort(y_all)
+        selected_indices = sorted_indices[:n_samples]
+        discarded_indices = sorted_indices[n_samples:]
+
         if self.n_repeat > 1:
             self.args.record_func(
-                hpwl=y_all[sorted_indices[n_samples:]], 
-                overlap_rate=overlap_rate[sorted_indices[n_samples:]],
-                macro_pos_all=list(np.array(macro_pos_all)[sorted_indices[n_samples:]])
-            ) 
-        return X[sorted_indices[:n_samples]]
+                hpwl=y_all[discarded_indices],
+                overlap_rate=overlap_rate[discarded_indices],
+                macro_pos_all=list(macro_pos_all[discarded_indices]),
+            )
 
-    
+        self._selected_fitness = y_all[selected_indices]
+        self._selected_overlap_rate = overlap_rate[selected_indices]
+        self._selected_macro_pos = list(macro_pos_all[selected_indices])
+        return X[selected_indices]
+
     @abstractmethod
     def _sampling_do(self, problem, n_samples, **kwargs):
         pass
