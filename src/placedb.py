@@ -12,7 +12,13 @@ def get_node_to_net_dict(node_info, net_info):
     for net_name in net_info:
         for node_name in net_info[net_name]["nodes"]:
             node_to_net_dict[node_name].add(net_name)
-    return node_to_net_dict
+
+    # MGO accumulates floating-point wire masks in this order. Keep it stable
+    # across processes because set iteration depends on hash randomization.
+    return {
+        node_name: tuple(sorted(net_names))
+        for node_name, net_names in node_to_net_dict.items()
+    }
 
 
 class PlaceDB:
